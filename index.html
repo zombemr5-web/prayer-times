@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>مواقيت الصلاة — كركوك</title>
+<meta name="theme-color" content="#0e2924">
+<style>
+:root{--bg:#0e2924;--bg2:#143832;--line:#2a5249;--ink:#f4ecd8;--mute:#9fb8ae;--gold:#e0b050;--mint:#7cc4ae;--r:14px}
+*{box-sizing:border-box;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:Cairo,system-ui,'Segoe UI',Tahoma,sans-serif;line-height:1.7;min-height:100vh;
+background-image:radial-gradient(circle at 50% -10%,#1d4a41 0,transparent 55%)}
+main{max-width:560px;margin:0 auto;padding:20px 16px 48px}
+header{text-align:center;padding:8px 0 4px}
+header h1{font-family:Amiri,'Traditional Arabic','Noto Naskh Arabic',serif;font-size:1.7rem;color:var(--gold)}
+header p{color:var(--mute);font-size:.9rem}
+.hero{text-align:center;padding:26px 12px 22px;margin:14px 0;border-bottom:1px solid var(--line)}
+.hero .lbl{font-size:1.15rem;color:var(--mint)}
+.hero .cd{font-size:clamp(3rem,16vw,4.6rem);font-weight:800;letter-spacing:.04em;direction:ltr;font-variant-numeric:tabular-nums;color:var(--ink);line-height:1.15}
+.hero .sub{color:var(--mute);font-size:.95rem}
+.hero.praying .cd{font-family:Amiri,'Traditional Arabic','Noto Naskh Arabic',serif;font-size:2.4rem;color:var(--gold)}
+.list{list-style:none;padding:0}
+.list li{display:grid;grid-template-columns:1.2fr 1fr 1fr;align-items:center;padding:11px 14px;border-radius:var(--r)}
+.list li+li{margin-top:2px}
+.list .h{color:var(--mute);font-size:.8rem;padding-top:0;padding-bottom:2px}
+.list .n{font-weight:600}
+.list .t{direction:ltr;text-align:center;font-variant-numeric:tabular-nums}
+.list li.now{background:var(--bg2);outline:1px solid var(--gold)}
+.list li.now .n{color:var(--gold)}
+.list li.past{opacity:.5}
+nav{display:flex;gap:8px;margin:26px 0 12px}
+nav button{flex:1;font:inherit;padding:9px;border-radius:var(--r);border:1px solid var(--line);background:none;color:var(--mute);cursor:pointer}
+nav button[aria-selected=true]{background:var(--gold);color:#1c1503;border-color:var(--gold);font-weight:600}
+button:focus-visible{outline:2px solid var(--mint);outline-offset:2px}
+.dh{background:var(--bg2);border-radius:var(--r);padding:12px 14px;margin-bottom:10px;display:flex;gap:12px;align-items:center;justify-content:space-between;width:100%;text-align:right;color:var(--ink);font:inherit;border:0;cursor:pointer}
+.dh .tx{font-family:Amiri,'Traditional Arabic','Noto Naskh Arabic',serif;font-size:1.2rem;line-height:1.9}
+.dh .c{min-width:52px;text-align:center;font-weight:800;color:var(--gold);direction:ltr}
+.dh.done{opacity:.45}
+.note{color:var(--mute);font-size:.85rem;margin-top:6px}
+.hd{background:var(--bg2);border-radius:var(--r);padding:22px 18px;text-align:center}
+.hd q{display:block;font-family:Amiri,'Traditional Arabic','Noto Naskh Arabic',serif;font-size:1.5rem;line-height:2;quotes:"«" "»"}
+.hd cite{display:block;margin-top:6px;color:var(--mint);font-style:normal;font-size:.9rem}
+.hd button{margin-top:14px;font:inherit;padding:7px 18px;border-radius:99px;border:1px solid var(--gold);background:none;color:var(--gold);cursor:pointer}
+#err{color:#f0a58f;text-align:center;font-size:.9rem;min-height:1.2em}
+footer{text-align:center;color:var(--mute);font-size:.75rem;margin-top:30px}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1 id="mosque">مواقيت الصلاة — كركوك</h1>
+  <p id="dates"></p>
+</header>
+
+<section class="hero" id="hero" aria-live="polite">
+  <div class="lbl" id="lbl">جارٍ التحميل…</div>
+  <div class="cd" id="cd">--:--:--</div>
+  <div class="sub" id="sub"></div>
+</section>
+<div id="err"></div>
+
+<ul class="list" id="list"></ul>
+
+<nav role="tablist">
+  <button role="tab" aria-selected="true" data-tab="adhkar">أذكار بعد الصلاة</button>
+  <button role="tab" aria-selected="false" data-tab="hadith">من هدي النبي ﷺ</button>
+</nav>
+
+<section id="adhkar"></section>
+<section id="hadith" hidden>
+  <div class="hd"><q id="hq"></q><cite id="hs"></cite><button id="next">حديث آخر</button></div>
+</section>
+
+<footer>تُحسب المواقيت داخل الجهاز بدون إنترنت · توقيت بغداد (UTC+3)</footer>
+</main>
+
+<script>
+/* ===== الإعدادات — عدّل هنا ===== */
+const CONFIG = {
+  mosque: "مواقيت الصلاة — كركوك",
+  lat: 35.4681, lng: 44.3922,     // كركوك
+  tz: "Asia/Baghdad", utc: "+03:00",
+  fajrAngle: 18, ishaAngle: 17,   // زاويتا الفجر والعشاء (رابطة العالم الإسلامي). قارنها بتقويم مسجدكم
+  asrFactor: 1,                   // العصر: 1 = جمهور، 2 = حنفي
+  iqama:  { Fajr: 30, Dhuhr: 15, Asr: 15, Maghrib: 5, Isha: 15 },  // دقائق بين الأذان والإقامة
+  adjust: { Fajr: 0, Dhuhr: 0, Asr: 0, Maghrib: 0, Isha: 0 },      // تعديل الأذان بالدقائق (+/-)
+  prayingMinutes: 10              // مدة عرض «جارٍ أداء الصلاة»
+};
+
+const NAMES = { Fajr:"الفجر", Sunrise:"الشروق", Dhuhr:"الظهر", Asr:"العصر", Maghrib:"المغرب", Isha:"العشاء" };
+const ORDER = ["Fajr","Sunrise","Dhuhr","Asr","Maghrib","Isha"];
+const $ = id => document.getElementById(id);
+const pad = n => String(n).padStart(2,"0");
+
+/* ===== التاريخ بتوقيت بغداد ===== */
+const ymdOf = (off=0) => new Intl.DateTimeFormat("en-CA",{timeZone:CONFIG.tz}).format(new Date(Date.now()+off*864e5));
+const toDate = (ymd, hm, plusMin=0) => {
+  const [h,m] = hm.split(":").map(Number);
+  return new Date(new Date(`${ymd}T${pad(h)}:${pad(m)}:00${CONFIG.utc}`).getTime() + plusMin*6e4);
+};
+const fmt = d => {
+  const p = new Intl.DateTimeFormat("en-GB",{timeZone:CONFIG.tz,hour:"numeric",minute:"2-digit",hour12:false}).format(d).split(":");
+  const h = +p[0]; return `${h%12||12}:${p[1]} ${h<12?"ص":"م"}`;
+};
+
+/* ===== حساب المواقيت محليًا (بدون إنترنت) ===== */
+const R = Math.PI/180, D = 180/Math.PI;
+const sin=d=>Math.sin(d*R), cos=d=>Math.cos(d*R), tan=d=>Math.tan(d*R);
+const asin=x=>Math.asin(x)*D, acos=x=>Math.acos(x)*D, acot=x=>Math.atan(1/x)*D, atan2=(y,x)=>Math.atan2(y,x)*D;
+const fix=(a,b)=>{ a-=b*Math.floor(a/b); return a<0?a+b:a; };
+function julian(y,m,d){ if(m<=2){y--;m+=12} const A=Math.floor(y/100), B=2-A+Math.floor(A/4);
+  return Math.floor(365.25*(y+4716))+Math.floor(30.6001*(m+1))+d+B-1524.5; }
+function sunPos(jd){ const d=jd-2451545, g=fix(357.529+0.98560028*d,360), q=fix(280.459+0.98564736*d,360),
+  L=fix(q+1.915*sin(g)+0.020*sin(2*g),360), e=23.439-3.6e-7*d, RA=atan2(cos(e)*sin(L),cos(L))/15;
+  return { decl: asin(sin(e)*sin(L)), eq: q/15-fix(RA,24) }; }
+function computeTimes(ymd){
+  const [Y,M,Dd] = ymd.split("-").map(Number), lat = CONFIG.lat, lng = CONFIG.lng;
+  const jd = julian(Y,M,Dd) - lng/360;
+  const mid = t => fix(12 - sunPos(jd+t).eq, 24);
+  const byAngle = (ang,t,ccw) => { const dc = sunPos(jd+t).decl;
+    return mid(t) + (ccw?-1:1)/15*acos((-sin(ang)-sin(dc)*sin(lat))/(cos(dc)*cos(lat))); };
+  const asr = (f,t) => byAngle(-acot(f+tan(Math.abs(lat-sunPos(jd+t).decl))), t);
+  let h = {fajr:5,sunrise:6,dhuhr:12,asr:13,sunset:18,isha:18};
+  for(let i=0;i<2;i++){
+    const t = {}; for(const k in h) t[k] = h[k]/24;
+    h = { fajr: byAngle(CONFIG.fajrAngle,t.fajr,true), sunrise: byAngle(0.833,t.sunrise,true), dhuhr: mid(t.dhuhr),
+          asr: asr(CONFIG.asrFactor,t.asr), sunset: byAngle(0.833,t.sunset), isha: byAngle(CONFIG.ishaAngle,t.isha) };
+  }
+  const z = 3 - lng/15, f = x => { x = fix(x+z+0.5/60,24); return `${Math.floor(x)}:${pad(Math.floor((x%1)*60))}`; };
+  return { Fajr:f(h.fajr), Sunrise:f(h.sunrise), Dhuhr:f(h.dhuhr), Asr:f(h.asr), Maghrib:f(h.sunset), Isha:f(h.isha) };
+}
+async function getTimings(ymd){ return computeTimes(ymd); }
+
+let events = [], rows = {}, rise = 0, loading = false;
+async function load(){
+  if(loading) return; loading = true;
+  $("err").textContent = "";
+  try{
+    const [t0,t1] = await Promise.all([getTimings(ymdOf(0)), getTimings(ymdOf(1))]);
+    build(ymdOf(0), t0, ymdOf(1), t1);
+  }catch(e){
+    events = [];
+    $("lbl").textContent = "تعذّر تحميل المواقيت";
+    $("err").innerHTML = "حدث خطأ في الحساب <button id='retry' style='color:#e0b050;background:none;border:0;font:inherit;text-decoration:underline;cursor:pointer'>أعد المحاولة</button>";
+    $("retry").onclick = load;
+  }finally{ loading = false; }
+}
+
+function build(ymd0, t0, ymd1, t1){
+  const isFri = new Date(ymd0+"T12:00:00"+CONFIG.utc).getUTCDay() === 5;
+  const ev = (name, ymd, t) => {
+    const adhan = toDate(ymd, t[name], CONFIG.adjust[name]||0);
+    const q = CONFIG.iqama[name];
+    return { key:name, label:(name==="Dhuhr"&&isFri&&ymd===ymd0)?"الجمعة":NAMES[name], adhan, iqama: q!=null ? new Date(adhan.getTime()+q*6e4) : null };
+  };
+  const day = ORDER.map(k => ev(k, ymd0, t0));
+  rise = toDate(ymd0, t0.Sunrise);
+  events = day.filter(e => e.key!=="Sunrise").concat([ev("Fajr", ymd1, t1)]);
+  const ul = $("list");
+  ul.innerHTML = '<li class="h"><span>الصلاة</span><span class="t">الأذان</span><span class="t">الإقامة</span></li>';
+  rows = {};
+  day.forEach(e => {
+    const li = document.createElement("li");
+    li.innerHTML = `<span class="n">${e.label}</span><span class="t">${fmt(e.adhan)}</span><span class="t">${e.iqama?fmt(e.iqama):"—"}</span>`;
+    ul.appendChild(li); rows[e.key] = li;
+  });
+  tick();
+}
+
+function dur(ms){
+  const s = Math.max(0, Math.ceil(ms/1000));
+  return `${pad(Math.floor(s/3600))}:${pad(Math.floor(s%3600/60))}:${pad(s%60)}`;
+}
+
+function tick(){
+  if(!events.length) return;
+  const now = Date.now(), hero = $("hero");
+  let cur = null, state = "next";
+  for(const e of events){
+    if(now < e.adhan){ cur = e; state = "next"; break; }
+    if(now < e.iqama){ cur = e; state = "iqama"; break; }
+    if(now < e.iqama.getTime() + CONFIG.prayingMinutes*6e4){ cur = e; state = "praying"; break; }
+  }
+  if(!cur){ load(); return; }                       // انتهى اليوم: حمّل اليوم الجديد
+  hero.classList.toggle("praying", state==="praying");
+  if(state==="next"){
+    $("lbl").textContent = `صلاة ${cur.label} تبدأ بعد`;
+    $("cd").textContent = dur(cur.adhan-now);
+    $("sub").textContent = `الأذان ${fmt(cur.adhan)} · الإقامة ${fmt(cur.iqama)}`;
+  }else if(state==="iqama"){
+    $("lbl").textContent = `حان وقت أذان ${cur.label} — الإقامة بعد`;
+    $("cd").textContent = dur(cur.iqama-now);
+    $("sub").textContent = `الإقامة ${fmt(cur.iqama)}`;
+  }else{
+    $("lbl").textContent = `صلاة ${cur.label}`;
+    $("cd").textContent = "جارٍ أداء الصلاة";
+    $("sub").textContent = "تقبّل الله طاعتكم · لا تنسَ أذكار ما بعد الصلاة";
+  }
+  Object.entries(rows).forEach(([k,li]) => {
+    li.classList.toggle("now", k===cur.key && events.indexOf(cur)<5);
+    const e = events.slice(0,5).find(x => x.key===k);
+    const end = e ? e.iqama.getTime() + CONFIG.prayingMinutes*6e4 : rise.getTime();
+    li.classList.toggle("past", now > end);
+  });
+}
+
+/* ===== التاريخ ===== */
+(function(){
+  const d = new Date(), o = {timeZone:CONFIG.tz};
+  const g = new Intl.DateTimeFormat("ar-IQ",{...o,weekday:"long",day:"numeric",month:"long",year:"numeric"}).format(d);
+  const h = new Intl.DateTimeFormat("ar-SA-u-ca-islamic-umalqura",{...o,day:"numeric",month:"long",year:"numeric"}).format(d);
+  $("dates").textContent = `${g} · ${h}`;
+  $("mosque").textContent = CONFIG.mosque;
+})();
+
+/* ===== الأذكار (اضغط على الذكر للعدّ) ===== */
+const ADHKAR = [
+  {t:"أستغفر الله", n:3},
+  {t:"اللهم أنت السلام ومنك السلام، تباركت يا ذا الجلال والإكرام", n:1},
+  {t:"لا إله إلا الله وحده لا شريك له، له الملك وله الحمد وهو على كل شيء قدير", n:1},
+  {t:"سبحان الله", n:33},
+  {t:"الحمد لله", n:33},
+  {t:"الله أكبر", n:34},
+  {t:"آية الكرسي: اللَّهُ لَا إِلَٰهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ لَا تَأْخُذُهُ سِنَةٌ وَلَا نَوْمٌ لَهُ مَا فِي السَّمَاوَاتِ وَمَا فِي الْأَرْضِ مَنْ ذَا الَّذِي يَشْفَعُ عِنْدَهُ إِلَّا بِإِذْنِهِ يَعْلَمُ مَا بَيْنَ أَيْدِيهِمْ وَمَا خَلْفَهُمْ وَلَا يُحِيطُونَ بِشَيْءٍ مِنْ عِلْمِهِ إِلَّا بِمَا شَاءَ وَسِعَ كُرْسِيُّهُ السَّمَاوَاتِ وَالْأَرْضَ وَلَا يَئُودُهُ حِفْظُهُمَا وَهُوَ الْعَلِيُّ الْعَظِيمُ", n:1},
+  {t:"سورة الإخلاص والفلق والناس (ثلاث مرات بعد الفجر والمغرب، ومرة بعد بقية الصلوات)", n:1}
+];
+const ad = $("adhkar");
+ADHKAR.forEach(a => {
+  const b = document.createElement("button"); b.className = "dh"; let left = a.n;
+  b.innerHTML = `<span class="tx">${a.t}</span><span class="c">${left}</span>`;
+  b.onclick = () => { left = left>0 ? left-1 : a.n; b.querySelector(".c").textContent = left===0?"✓":left; b.classList.toggle("done", left===0); };
+  ad.appendChild(b);
+});
+const nt = document.createElement("p"); nt.className = "note"; nt.textContent = "اضغط على الذكر لينقص العدّاد، واضغط مرة أخرى بعد الانتهاء لإعادته."; ad.appendChild(nt);
+
+/* ===== الأحاديث ===== */
+const HADITH = [
+  ["إنما الأعمال بالنيات، وإنما لكل امرئ ما نوى","متفق عليه"],
+  ["تبسمك في وجه أخيك لك صدقة","رواه الترمذي"],
+  ["خيركم من تعلم القرآن وعلمه","رواه البخاري"],
+  ["لا يؤمن أحدكم حتى يحب لأخيه ما يحب لنفسه","متفق عليه"],
+  ["أحب الأعمال إلى الله أدومها وإن قل","متفق عليه"],
+  ["الكلمة الطيبة صدقة","متفق عليه"],
+  ["الطهور شطر الإيمان","رواه مسلم"],
+  ["من سلك طريقًا يلتمس فيه علمًا سهّل الله له به طريقًا إلى الجنة","رواه مسلم"],
+  ["ليس الشديد بالصرعة، إنما الشديد الذي يملك نفسه عند الغضب","متفق عليه"],
+  ["من كان يؤمن بالله واليوم الآخر فليقل خيرًا أو ليصمت","متفق عليه"]
+];
+let hi = Math.floor(Math.random()*HADITH.length);
+const showH = () => { $("hq").textContent = HADITH[hi][0]; $("hs").textContent = HADITH[hi][1]; };
+$("next").onclick = () => { hi = (hi+1)%HADITH.length; showH(); };
+showH(); setInterval(() => { hi = (hi+1)%HADITH.length; showH(); }, 30000);
+
+/* ===== التبويبات ===== */
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button").forEach(x => x.setAttribute("aria-selected", x===b));
+  ["adhkar","hadith"].forEach(id => $(id).hidden = id !== b.dataset.tab);
+});
+
+load(); setInterval(tick, 1000);
+if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>
